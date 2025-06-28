@@ -34,6 +34,9 @@ const ChatInterface: React.FC = () => {
 
       ws.onmessage = (message) => {
         try {
+          console.log('Received message type:', typeof message.data);
+          console.log('Message data:', message.data);
+          
           // Check if the message is a string (JSON)
           if (typeof message.data === 'string') {
             const data = JSON.parse(message.data);
@@ -49,9 +52,16 @@ const ChatInterface: React.FC = () => {
           } else if (message.data instanceof ArrayBuffer) {
             // Handle binary audio data
             playAudioChunk(message.data);
+          } else if (message.data instanceof Uint8Array) {
+            // Handle Uint8Array audio data
+            const buffer = message.data.buffer.slice(message.data.byteOffset, message.data.byteOffset + message.data.byteLength);
+            if (buffer instanceof ArrayBuffer) {
+              playAudioChunk(buffer);
+            }
           }
         } catch (error) {
           console.error('Error processing message:', error);
+          console.error('Message data that caused error:', message.data);
         }
       };
 
@@ -94,7 +104,14 @@ const ChatInterface: React.FC = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
         audioBlob.arrayBuffer().then(buffer => {
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(buffer);
+            // Convert ArrayBuffer to Uint8Array for proper binary transmission
+            const uint8Array = new Uint8Array(buffer);
+            console.log('Sending audio data:', {
+              bufferSize: buffer.byteLength,
+              uint8ArrayLength: uint8Array.length,
+              blobSize: audioBlob.size
+            });
+            wsRef.current.send(uint8Array);
           }
         });
         audioChunksRef.current = [];
